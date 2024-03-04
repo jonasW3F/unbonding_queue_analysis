@@ -1,0 +1,57 @@
+---
+title: "Unbonding Queue Analysis: Empirics"
+author: "Jonas Gehrlein"
+date: "2024-03-04"
+output: html_document
+---
+
+```{r}
+# Load necessary libraries
+library(ggplot2)
+# Load unbonding data.
+empirical_data <- read.csv("empirical_data.csv")
+# Set parameters
+UPPER_BOUND <- 28 # in days
+LOWER_BOUND <- 2 # in days
+MIN_SLASHABLE_SHARE <- 1/6 # the share of total stake that is slashable at any point in time
+```
+
+```{r}
+calculate_average_unbonds <- function(df){
+  df$date <- as.Date(df$date)
+  df$max_unstake <- df$total_stake * MIN_SLASHABLE_SHARE
+  df$back_of_unbonding_queue <- df$date
+  df$unbonding_delta <- 0
+
+  df$unbonding_delta <- df$unbonded_amount / df$max_unstake * UPPER_BOUND
+  for(i in 2:nrow(df)){
+    df$back_of_unbonding_queue[i] <- as.Date(max(df$date[i], df$back_of_unbonding_queue[i-1]) + df$unbonding_delta[i])
+    df$unbonding_date[i] <- min(UPPER_BOUND, max(as.numeric(df$back_of_unbonding_queue[i] - df$date[i]), LOWER_BOUND)) + df$date[i]
+  }
+    df$unbonding_duration <- as.Date(df$unbonding_date) - df$date
+    df <- df[-1,]
+  return(df)
+}
+```
+
+```{r}
+output <- calculate_average_unbonds(empirical_data)
+output$unbonding_days <- as.numeric(output$unbonding_duration)
+
+
+ggplot(output, aes(x = date)) +
+  geom_line(aes(y = unbonding_days, color = "Unbonding Days")) +
+  geom_line(aes(y = unbonded_amount / max(unbonded_amount) * UPPER_BOUND, color = "Unbonded Amount")) + # scale the "unbonded_amount" to the maximum of y-axis of 28
+  scale_y_continuous(
+    name = "Unbonding Days", 
+    limits = c(0, UPPER_BOUND),
+    sec.axis = sec_axis(~ . * max(output$unbonded_amount) / UPPER_BOUND, name = "Unbonded Amount")
+  ) +
+  scale_color_manual(values = c("Unbonding Days" = "blue", "Unbonded Amount" = "red")) + 
+  labs(title = "Unbonding Days and Unbonded Amount Over Time", 
+       x = "Date", 
+       y = "Unbonding Days / Scaled Unbonded Amount",
+       color = "Legend") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
