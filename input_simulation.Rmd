@@ -1,7 +1,7 @@
 ---
 title: "Unbonding Queue Analysis: Simulation"
 author: "Jonas Gehrlein"
-date: "2024-03-04"
+date: "2024-08-12"
 output: html_document
 ---
 
@@ -19,28 +19,35 @@ initialize_simulation <- function(max_stake, back_of_unbonding_queue_block, curr
   GLOBAL_CURRENT_BLOCK <<- current_block_number
 }
 
-run_simulation <- function(unbonding_stake, current_block_number){
+run_simulation <- function(unbonding_stake, current_block_number) {
   GLOBAL_CURRENT_BLOCK <<- current_block_number
   
+  # Calculate unbonding time delta
   unbonding_time_delta <- unbonding_stake / GLOBAL_MAX_STAKE * 403200
   
-  GLOBAL_CURRENT_BACK_OF_UNBONDING_QUEUE_BLOCK <<- max(GLOBAL_CURRENT_BLOCK, GLOBAL_CURRENT_BACK_OF_UNBONDING_QUEUE_BLOCK) + unbonding_time_delta
+  # Update the back of the unbonding queue block number using the RFC logic
+  GLOBAL_CURRENT_BACK_OF_UNBONDING_QUEUE_BLOCK <<- max(
+    min(GLOBAL_CURRENT_BACK_OF_UNBONDING_QUEUE_BLOCK + unbonding_time_delta, 
+        GLOBAL_CURRENT_BLOCK + 403200), 
+    GLOBAL_CURRENT_BLOCK + 28800, 
+    GLOBAL_CURRENT_BLOCK
+  )
   
+  # Calculate the unbonding block number
   unbonding_block_number <- min(403200, max(GLOBAL_CURRENT_BACK_OF_UNBONDING_QUEUE_BLOCK - GLOBAL_CURRENT_BLOCK, 28800)) + GLOBAL_CURRENT_BLOCK
   
-  return(paste0("The unbonding time will be at block number ", unbonding_block_number, " or in ", unbonding_block_number - GLOBAL_CURRENT_BLOCK, " blocks (",  round(block_to_days(unbonding_block_number, GLOBAL_CURRENT_BLOCK), digits = 2), " days)."))
+  return(paste0("The unbonding time will be at block number ", unbonding_block_number, 
+                " or in ", unbonding_block_number - GLOBAL_CURRENT_BLOCK, " blocks (",  
+                round(block_to_days(unbonding_block_number, GLOBAL_CURRENT_BLOCK), digits = 1), " days).",
+                " The Global Back of the queue is at ", GLOBAL_CURRENT_BACK_OF_UNBONDING_QUEUE_BLOCK))
 }
 ```
 
+
+
 ```{r}
-initialize_simulation(10000, 0, 100)
-run_simulation(2000, 100)
-run_simulation(3000, 100)
-run_simulation(3000, 100)
-run_simulation(5000, 1000)
-run_simulation(5000, 1000)
-run_simulation(2000, 302340)
-run_simulation(15000, 10002340)
-run_simulation(5,20002340)
+initialize_simulation(1000, 0, 0)
+# Queue Voll
+run_simulation(1, 0)
 ```
 

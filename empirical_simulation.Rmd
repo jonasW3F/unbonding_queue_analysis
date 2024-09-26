@@ -13,7 +13,7 @@ empirical_data <- read.csv("empirical_data.csv")
 # Set parameters
 UPPER_BOUND <- 28 # in days
 LOWER_BOUND <- 2 # in days
-MIN_SLASHABLE_SHARE <- 1/6 # the share of total stake that is slashable at any point in time
+MIN_SLASHABLE_SHARE <- 0.1454 # the share of total stake that is slashable at any point in time
 ```
 
 ```{r}
@@ -22,6 +22,7 @@ calculate_average_unbonds <- function(df){
   df$max_unstake <- df$total_stake * MIN_SLASHABLE_SHARE
   df$back_of_unbonding_queue <- df$date
   df$unbonding_delta <- 0
+  df$unbonding_date <- NA
 
   df$unbonding_delta <- df$unbonded_amount / df$max_unstake * UPPER_BOUND
   for(i in 2:nrow(df)){
@@ -55,3 +56,5 @@ ggplot(output, aes(x = date)) +
   theme_minimal() +
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
 ```
+
+The average unbonding time throughout the full period is `r mean(output$unbonding_days)`
