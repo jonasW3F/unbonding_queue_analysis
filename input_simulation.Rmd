@@ -25,14 +25,11 @@ run_simulation <- function(unbonding_stake, current_block_number) {
   # Calculate unbonding time delta
   unbonding_time_delta <- unbonding_stake / GLOBAL_MAX_STAKE * 403200
   
-  # Update the back of the unbonding queue block number using the RFC logic
-  GLOBAL_CURRENT_BACK_OF_UNBONDING_QUEUE_BLOCK <<- max(
-    min(GLOBAL_CURRENT_BACK_OF_UNBONDING_QUEUE_BLOCK + unbonding_time_delta, 
-        GLOBAL_CURRENT_BLOCK + 403200), 
-    GLOBAL_CURRENT_BLOCK + 28800, 
-    GLOBAL_CURRENT_BLOCK
-  )
-  
+  GLOBAL_CURRENT_BACK_OF_UNBONDING_QUEUE_BLOCK <<- min(
+  GLOBAL_CURRENT_BLOCK + 403200, 
+  max(GLOBAL_CURRENT_BLOCK, GLOBAL_CURRENT_BACK_OF_UNBONDING_QUEUE_BLOCK) + round(max(unbonding_time_delta, 1),0)
+)
+
   # Calculate the unbonding block number
   unbonding_block_number <- min(403200, max(GLOBAL_CURRENT_BACK_OF_UNBONDING_QUEUE_BLOCK - GLOBAL_CURRENT_BLOCK, 28800)) + GLOBAL_CURRENT_BLOCK
   
@@ -48,6 +45,10 @@ run_simulation <- function(unbonding_stake, current_block_number) {
 ```{r}
 initialize_simulation(1000, 0, 0)
 # Queue Voll
-run_simulation(1, 0)
+run_simulation(3000, 0)
+run_simulation(1, 403200/2) # 403603
+run_simulation(100, 0)
+run_simulation(100, 0)
+run_simulation(100, 0)
 ```
 
