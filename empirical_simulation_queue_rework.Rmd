@@ -1,0 +1,92 @@
+---
+title: "Unbonding Queue Analysis: Empirics (Queue Rework)"
+author: "Jonas Gehrlein"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+library(dplyr)
+library(ggplot2)
+```
+
+```{r}
+# ---- Load data ----
+data <- read.csv("empirical_data.csv", stringsAsFactors = FALSE)
+data$date <- as.Date(data$date)
+data <- data %>% mutate(
+  max_stake    = total_stake / 6,
+  est_duration = NA_integer_
+)
+# We need at least 29 days to get one full 28-day history + 1 simulation point
+stopifnot(nrow(data) >= 29)
+```
+
+```{r}
+# ---- Parameters ----
+window_size <- 28  # maximum unbonding time
+min_delay   <- 2   # minimum unbonding time
+
+# ---- Calculate unbonding times ----
+# The algorithm works as follows:
+# For an unbonding request of amount $X_t$ in era $t$, and a threshold $\text{MAX\_UNSTAKE}_e$ (approximated as 1/6 of total stake in era $e$):
+# 
+# 1. If $X_t \geq \text{MAX\_UNSTAKE}_t$, assign a delay of **28 days**.
+# 2. Otherwise, iterate backward up to 27 previous eras ($t-1, t-2, ..., t-27$):
+#    * For each era $e$, compute the cumulative unbonded amount:
+#      $$ \sum_{k=0}^{e} X_{t-k}$$
+#    * Stop if the sum exceeds $\text{MAX\_UNSTAKE}_{t-k}$.
+# 3. If the threshold is never exceeded, assign a minimum delay of **2 days**.
+# 4. If exceeded in era $t-d$, assign a delay of $28 - d$ days.
+# This is applied independently for each day's unbonding request.
+
+n_records <- nrow(data)
+for (i in seq(window_size + 1, n_records)) {
+  amount <- data$unbonded_amount[i]
+  e <- 0
+  # backwards scan
+  for (k in seq_len(window_size)) {
+    idx <- i - k + 1
+    if (idx < 1) break
+    # sum of unbonds from day idx through i, inclusive
+    sum_window <- sum(data$unbonded_amount[idx:i], na.rm = TRUE)
+    if (sum_window <= data$max_stake[idx]) {
+      e <- e + 1
+    } else {
+      break
+    }
+  }
+  duration <- window_size - e
+  data$est_duration[i] <- max(duration, min_delay)
+}
+```
+
+```{r}
+ggplot(data, aes(x = date)) +
+  # Unbond Duration series with points
+  geom_line(aes(y = est_duration, color = "Unbond Duration"), size = 1) +
+  geom_point(aes(y = est_duration, color = "Unbond Duration"), size = 1) +
+  # Scaled Unbond Amount series with line
+  geom_line(aes(
+    y = (unbonded_amount / max(data$unbonded_amount)) * window_size,
+    color = "Scaled Unbond Amount"
+  ), size = 1) +
+  scale_y_continuous(
+    name = "Duration (days)",
+    limits = c(0, window_size),
+    sec.axis = sec_axis(~ . * max(data$unbonded_amount) / window_size, name = "Unbond Amount")
+  ) +
+  scale_color_manual(
+    values = c("Unbond Duration" = "blue", "Scaled Unbond Amount" = "red"),
+    guide = guide_legend(title = NULL)
+  ) +
+  labs(title = "Unbond Duration vs Amount", x = "Date") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+```{r}
+avg_dur <- mean(data$est_duration, na.rm = TRUE)
+cat("Average unbond duration:", round(avg_dur, 1), "days\n")
+```
